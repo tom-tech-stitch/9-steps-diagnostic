@@ -1,0 +1,7 @@
+.DS_Store
+.claude/
+# Internal notes stay on this machine: this repo is public because it hosts the page on GitHub Pages.
+NOTES.md
+# Brand font files are licensed for desktop use only: never commit them to this public repo.
+# See assets/css/fonts.css for how to switch the font on once the web licence is confirmed.
+assets/fonts/

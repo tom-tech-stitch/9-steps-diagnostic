@@ -1,0 +1,48 @@
+/*
+ * Brand typeface: Scto Grotesk A (Schick Toikka).
+ *
+ * Off by default: Business Leader holds a desktop licence, and serving the files from a website
+ * needs a web licence (any font a page displays is downloaded by every visitor's browser).
+ * To switch it on once the web licence is confirmed:
+ *   1. put SctoGroteskA-Regular.otf, -Medium.otf and -Bold.otf in assets/fonts/
+ *      (and remove assets/fonts/ from .gitignore)
+ *   2. uncomment the three font lines in the <head> of index.html
+ * Until then the page uses the system sans (SF Pro on Apple devices, Segoe UI on Windows).
+ */
+
+@font-face {
+  font-family: 'Scto Grotesk A';
+  src: url('../fonts/SctoGroteskA-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Scto Grotesk A';
+  src: url('../fonts/SctoGroteskA-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Scto Grotesk A';
+  src: url('../fonts/SctoGroteskA-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Scto Grotesk is set tighter than the system sans (the website's values). */
+:root {
+  --track-hero: -0.035em;
+  --track-h1: -0.03em;
+  --track-h2: -0.025em;
+  --track-score: -0.04em;
+}
+
+/* Same as the website: stylistic set 1 on, tabular figures off (Scto's tabular digits look monospaced). */
+body {
+  font-feature-settings:
+    'ss01',
+    'tnum' 0;
+}
