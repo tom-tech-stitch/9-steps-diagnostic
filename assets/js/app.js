@@ -1,6 +1,10 @@
 /*
  * The 9 Steps Diagnostic: screens, scoring, report links and the HubSpot hand-off.
  * Words live in content.js and settings in config.js; this file should rarely need editing.
+ *
+ * One engine runs two kinds of flow:
+ *   - the full diagnostic: about you, one screen per step (27 statements), details, report;
+ *   - a 2-minute check (?check=<id>): six statements on one screen, about you, details, report.
  */
 ;(() => {
   'use strict'
@@ -9,52 +13,94 @@
   const CFG = window.BL_DIAGNOSTIC_CONFIG || {}
   const LINKS = CFG.links || {}
   const STEPS = C.steps
-  const STORAGE_KEY = 'bl-9-steps-diagnostic-v1'
-  const REPORT_VERSION = '1'
+  const CHECKS = C.checks || []
+  const MAX_VALUE = Math.max(...C.scale.map((o) => o.value))
+  const SCREENS = {
+    full: ['intro', 'profile', 'step', 'details', 'results'],
+    check: ['intro', 'questions', 'profile', 'details', 'results'],
+  }
   const app = document.getElementById('app')
   const live = document.getElementById('live')
 
-  // Where each step's statements start in the flat answers array.
-  const OFFSETS = []
-  const TOTAL_STATEMENTS = STEPS.reduce((n, step, i) => {
-    OFFSETS[i] = n
-    return n + step.statements.length
-  }, 0)
-  const MAX_VALUE = Math.max(...C.scale.map((o) => o.value))
+  /* ---------- Flows ---------- */
+
+  function buildFlow(check) {
+    if (!check) {
+      return {
+        kind: 'full',
+        id: 'full',
+        check: null,
+        minutes: C.meta.minutes,
+        statements: STEPS.flatMap((s) => s.statements.map((text) => ({ step: s.n, text }))),
+        storageKey: 'bl-9-steps-diagnostic-v1',
+      }
+    }
+    return {
+      kind: 'check',
+      id: check.id,
+      check,
+      minutes: check.minutes || 2,
+      statements: check.statements.map((ref) => ({ step: ref.step, text: ref.text || STEPS[ref.step - 1].statements[ref.pick] })),
+      storageKey: `bl-9-steps-check-${check.id}-v1`,
+    }
+  }
+
+  // The flow this page's address asks for: a check (?check=isolation) or the full diagnostic.
+  const pageFlow = () => buildFlow(CHECKS.find((c) => c.id === new URLSearchParams(location.search).get('check')))
+
+  let FLOW
+  let FLOW_STEPS = [] // step numbers covered by this flow, ascending
+  let STEP_INDICES = {} // step number -> positions of its statements in FLOW.statements
+
+  function useFlow(flow) {
+    FLOW = flow
+    FLOW_STEPS = [...new Set(flow.statements.map((s) => s.step))].sort((a, b) => a - b)
+    STEP_INDICES = {}
+    flow.statements.forEach((s, i) => (STEP_INDICES[s.step] = STEP_INDICES[s.step] || []).push(i))
+  }
+
+  const isCheck = () => FLOW.kind === 'check'
 
   const fresh = () => ({
     screen: 'intro',
-    step: 0,
+    step: 0, // position in FLOW_STEPS (full diagnostic only)
     profile: Object.fromEntries(C.profile.map((q) => [q.id, null])),
-    answers: new Array(TOTAL_STATEMENTS).fill(null),
+    answers: new Array(FLOW.statements.length).fill(null),
     firstName: '',
     details: null, // kept in memory only, never stored
     detailsDone: false,
     sentCode: null,
     shared: false,
   })
-  let state = fresh()
+  let state
 
   /* ---------- Small helpers ---------- */
 
   const esc = (s) =>
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const pad = (n) => String(n).padStart(2, '0')
+  const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+  const word = (n) => WORDS[n] || String(n)
+  const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1)
+  const listOf = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`)
+  const stepByN = (n) => STEPS[n - 1]
+  const stepsOf = (check) => [...new Set(check.statements.map((s) => s.step))].sort((a, b) => a - b)
   const profileOption = (qid, oid) => C.profile.find((q) => q.id === qid)?.options.find((o) => o.id === oid)
   const scaleLabel = (v) => C.scale.find((o) => o.value === v)?.label ?? 'Not answered'
-  const stepAnswers = (i) => STEPS[i].statements.map((_, j) => state.answers[OFFSETS[i] + j])
-  const stepComplete = (i) => stepAnswers(i).every((v) => v !== null)
+  const stepComplete = (n) => STEP_INDICES[n].every((i) => state.answers[i] !== null)
+  const allAnswered = () => state.answers.every((v) => v !== null)
   const profileComplete = () => C.profile.every((q) => state.profile[q.id])
-  const firstIncompleteStep = () => STEPS.findIndex((_, i) => !stepComplete(i))
+  const firstIncompleteStep = () => FLOW_STEPS.findIndex((n) => !stepComplete(n))
   const hasProgress = () => profileComplete() || state.answers.some((v) => v !== null)
   const watchUrl = (w) => `https://www.youtube.com/watch?v=${encodeURIComponent(w.video)}&t=${Number(w.t) || 0}s`
   const reportUrl = (code) => `${location.origin}${location.pathname}#r=${code}`
+  const checkUrl = (check) => `?check=${encodeURIComponent(check.id)}`
   const newTab = 'target="_blank" rel="noopener"'
   const newTabNote = '<span class="sr-only"> (opens in a new tab)</span>'
 
   function track(event, data = {}) {
     window.dataLayer = window.dataLayer || []
-    window.dataLayer.push({ event, ...data })
+    window.dataLayer.push({ event, nine_steps_check: FLOW ? FLOW.id : '', ...data })
   }
 
   function announce(message) {
@@ -76,6 +122,7 @@
     half: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/>',
     gap: '<circle cx="12" cy="12" r="7.5"/><path d="M12 8v4.5M12 16h.01"/>',
     play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+    book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M8 7h8M8 11h6"/>',
     chevron: '<path d="M6 9l6 6 6-6"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
@@ -86,27 +133,35 @@
 
   /* ---------- Scoring ---------- */
 
-  function statusFor(total) {
-    if (total >= C.status.strength.minTotal) return 'strength'
-    if (total >= C.status.developing.minTotal) return 'developing'
+  function statusFor(share) {
+    if (share >= C.status.strength.minShare) return 'strength'
+    if (share >= C.status.developing.minShare) return 'developing'
     return 'gap'
   }
 
   function score(answers) {
-    const steps = STEPS.map((step, i) => {
-      const vals = step.statements.map((_, j) => answers[OFFSETS[i] + j] ?? 0)
+    const steps = FLOW_STEPS.map((n) => {
+      const idx = STEP_INDICES[n]
+      const vals = idx.map((i) => answers[i] ?? 0)
       const total = vals.reduce((a, b) => a + b, 0)
-      const max = step.statements.length * MAX_VALUE
-      return { ...step, index: i, vals, total, score: Math.round((total / max) * 100), status: statusFor(total) }
+      const max = idx.length * MAX_VALUE
+      return {
+        ...stepByN(n),
+        items: idx.map((i) => FLOW.statements[i].text),
+        vals,
+        total,
+        score: Math.round((total / max) * 100),
+        status: statusFor(total / max),
+      }
     })
     const grand = steps.reduce((a, s) => a + s.total, 0)
-    const overall = Math.round((grand / (TOTAL_STATEMENTS * MAX_VALUE)) * 100)
+    const overall = Math.round((grand / (FLOW.statements.length * MAX_VALUE)) * 100)
     const band = C.bands.find((b) => overall >= b.min) || C.bands[C.bands.length - 1]
     // Ties go to the earlier step: the first steps are the foundations for the later ones.
     const low = [...steps].sort((a, b) => a.score - b.score || a.n - b.n)
     const high = [...steps].sort((a, b) => b.score - a.score || a.n - b.n)
     const even = high[0].score === low[0].score
-    const priorities = low.slice(0, 3)
+    const priorities = low.slice(0, Math.min(3, steps.length))
     const frontier = priorities.every((s) => s.status === 'strength')
     let strengths = high.filter((s) => s.status === 'strength' && !priorities.includes(s)).slice(0, 3)
     const relative = strengths.length === 0
@@ -116,29 +171,43 @@
 
   /* ---------- Report links ---------- */
 
-  // A report code is the version, one digit per profile answer and one digit per statement.
-  // It carries no personal details, so it is safe to share and to store in HubSpot.
+  // A report code holds no personal details, so it is safe to share and to store in HubSpot.
+  //   Full diagnostic: "1" + one digit per profile answer + one digit per statement (27).
+  //   2-minute check:  "2" + the check's code digit + profile digits + one digit per statement.
   function encodeReport() {
     const idx = C.profile.map((q) => q.options.findIndex((o) => o.id === state.profile[q.id]))
-    if (idx.some((i) => i < 0 || i > 9) || state.answers.some((v) => v === null)) return null
-    return REPORT_VERSION + idx.join('') + state.answers.join('')
+    if (idx.some((i) => i < 0 || i > 9) || !allAnswered()) return null
+    return (isCheck() ? `2${FLOW.check.code}` : '1') + idx.join('') + state.answers.join('')
   }
 
   function decodeReport(code) {
-    if (!code || code.length !== 1 + C.profile.length + TOTAL_STATEMENTS) return null
-    if (!/^\d+$/.test(code) || code[0] !== REPORT_VERSION) return null
+    if (!code || !/^\d+$/.test(code)) return null
+    let flow
+    let rest
+    if (code[0] === '1') {
+      flow = buildFlow(null)
+      rest = code.slice(1)
+    } else if (code[0] === '2') {
+      const check = CHECKS.find((c) => String(c.code) === code[1])
+      if (!check) return null
+      flow = buildFlow(check)
+      rest = code.slice(2)
+    } else {
+      return null
+    }
+    if (rest.length !== C.profile.length + flow.statements.length) return null
     const profile = {}
     for (let i = 0; i < C.profile.length; i++) {
-      const option = C.profile[i].options[Number(code[1 + i])]
+      const option = C.profile[i].options[Number(rest[i])]
       if (!option) return null
       profile[C.profile[i].id] = option.id
     }
-    const answers = code
-      .slice(1 + C.profile.length)
+    const answers = rest
+      .slice(C.profile.length)
       .split('')
       .map(Number)
     if (answers.some((v) => v > MAX_VALUE)) return null
-    return { profile, answers }
+    return { flow, profile, answers }
   }
 
   function readSharedReport() {
@@ -146,12 +215,12 @@
     return match ? decodeReport(match[1]) : null
   }
 
-  /* ---------- Saved progress (this browser only) ---------- */
+  /* ---------- Saved progress (this browser only, one record per flow) ---------- */
 
   const store = {
     load() {
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY)
+        const raw = window.localStorage.getItem(FLOW.storageKey)
         return raw ? JSON.parse(raw) : null
       } catch {
         return null
@@ -161,14 +230,14 @@
       if (state.shared) return
       try {
         const { screen, step, profile, answers, firstName, detailsDone, sentCode } = state
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ screen, step, profile, answers, firstName, detailsDone, sentCode }))
+        window.localStorage.setItem(FLOW.storageKey, JSON.stringify({ screen, step, profile, answers, firstName, detailsDone, sentCode }))
       } catch {
         /* storage unavailable: the diagnostic still works, it just won't resume */
       }
     },
     clear() {
       try {
-        window.localStorage.removeItem(STORAGE_KEY)
+        window.localStorage.removeItem(FLOW.storageKey)
       } catch {
         /* nothing to clear */
       }
@@ -182,10 +251,10 @@
         if (profileOption(q.id, saved.profile[q.id])) state.profile[q.id] = saved.profile[q.id]
       }
     }
-    if (Array.isArray(saved.answers) && saved.answers.length === TOTAL_STATEMENTS) {
+    if (Array.isArray(saved.answers) && saved.answers.length === FLOW.statements.length) {
       state.answers = saved.answers.map((v) => (Number.isInteger(v) && v >= 0 && v <= MAX_VALUE ? v : null))
     }
-    if (['intro', 'profile', 'step', 'details', 'results'].includes(saved.screen)) state.screen = saved.screen
+    if (SCREENS[FLOW.kind].includes(saved.screen)) state.screen = saved.screen
     if (Number.isInteger(saved.step)) state.step = saved.step
     state.firstName = typeof saved.firstName === 'string' ? saved.firstName.slice(0, 60) : ''
     state.detailsDone = saved.detailsDone === true
@@ -197,22 +266,32 @@
   // Never land on a screen whose earlier answers are missing.
   function resolve(screen, step) {
     if (state.shared) return { screen: 'results', step: 0 }
-    if (screen === 'intro' || screen === 'profile') return { screen, step: 0 }
-    if (!profileComplete()) return { screen: 'profile', step: 0 }
+    if (!SCREENS[FLOW.kind].includes(screen) || screen === 'intro') return { screen: 'intro', step: 0 }
+    const needDetails = (s) => s === 'results' && CFG.requireDetails !== false && !state.detailsDone
+    if (isCheck()) {
+      if (screen === 'questions' || !allAnswered()) return { screen: 'questions', step: 0 }
+      if (screen === 'profile' || !profileComplete()) return { screen: 'profile', step: 0 }
+      return { screen: needDetails(screen) ? 'details' : screen, step: 0 }
+    }
+    if (screen === 'profile' || !profileComplete()) return { screen: 'profile', step: 0 }
     const gap = firstIncompleteStep()
     if (screen === 'step') {
-      const clamped = Math.min(Math.max(step, 0), STEPS.length - 1)
+      const clamped = Math.min(Math.max(step, 0), FLOW_STEPS.length - 1)
       return { screen, step: gap !== -1 && clamped > gap ? gap : clamped }
     }
     if (gap !== -1) return { screen: 'step', step: gap }
-    if (screen === 'results' && CFG.requireDetails !== false && !state.detailsDone) return { screen: 'details', step: 0 }
-    return { screen, step: 0 }
+    return { screen: needDetails(screen) ? 'details' : screen, step: 0 }
   }
 
   function resumeTarget() {
-    if (!profileComplete()) return ['profile', 0]
-    const gap = firstIncompleteStep()
-    if (gap !== -1) return ['step', gap]
+    if (isCheck()) {
+      if (!allAnswered()) return ['questions', 0]
+      if (!profileComplete()) return ['profile', 0]
+    } else {
+      if (!profileComplete()) return ['profile', 0]
+      const gap = firstIncompleteStep()
+      if (gap !== -1) return ['step', gap]
+    }
     return [state.detailsDone || CFG.requireDetails === false ? 'results' : 'details', 0]
   }
 
@@ -238,20 +317,30 @@
       window.history.back()
       return
     }
-    const previous = {
-      profile: ['intro', 0],
-      step: state.step > 0 ? ['step', state.step - 1] : ['profile', 0],
-      details: ['step', STEPS.length - 1],
-    }[state.screen]
+    const previous = isCheck()
+      ? { questions: ['intro', 0], profile: ['questions', 0], details: ['profile', 0] }[state.screen]
+      : {
+          profile: ['intro', 0],
+          step: state.step > 0 ? ['step', state.step - 1] : ['profile', 0],
+          details: ['step', FLOW_STEPS.length - 1],
+        }[state.screen]
     if (previous) go(previous[0], previous[1], { history: 'replace' })
   }
 
   function restart() {
-    const wasShared = state.shared
+    if (state.shared) {
+      // From someone else's report to this visitor's own go at the same flow.
+      track('nine_steps_take_it_yourself')
+      window.history.pushState(null, '', isCheck() ? location.pathname + checkUrl(FLOW.check) : location.pathname)
+      state = fresh()
+      restore(store.load())
+      go('intro', 0, { history: 'replace' })
+      return
+    }
     store.clear()
     state = fresh()
     go('intro', 0)
-    track(wasShared ? 'nine_steps_take_it_yourself' : 'nine_steps_restart')
+    track('nine_steps_restart')
   }
 
   window.addEventListener('popstate', (event) => {
@@ -261,7 +350,8 @@
       return
     }
     if (state.shared) {
-      // Leaving someone else's report: pick up this visitor's own saved progress again.
+      // Leaving someone else's report: back to this page's own flow and saved progress.
+      useFlow(pageFlow())
       state = fresh()
       restore(store.load())
     }
@@ -270,6 +360,7 @@
   })
 
   function openShared(report) {
+    useFlow(report.flow)
     state = fresh()
     state.shared = true
     state.profile = report.profile
@@ -281,51 +372,132 @@
 
   /* ---------- Rendering ---------- */
 
-  const TITLES = {
-    intro: () => 'The 9 Steps Diagnostic | Business Leader',
-    profile: () => 'About you | The 9 Steps Diagnostic',
-    step: () => `Step ${STEPS[state.step].n} of ${STEPS.length}: ${STEPS[state.step].name} | The 9 Steps Diagnostic`,
-    details: () => 'Your report is ready | The 9 Steps Diagnostic',
-    results: () => 'Your 9 Steps report | Business Leader',
+  function title() {
+    const check = FLOW.check
+    const step = STEPS[FLOW_STEPS[state.step] - 1]
+    if (check) {
+      return {
+        intro: `${check.title} | Business Leader`,
+        questions: `${check.name} check | The 9 Steps Diagnostic`,
+        profile: `About you | ${check.name} check`,
+        details: `Your report is ready | ${check.name} check`,
+        results: `Your ${check.name} check | Business Leader`,
+      }[state.screen]
+    }
+    return {
+      intro: 'The 9 Steps Diagnostic | Business Leader',
+      profile: 'About you | The 9 Steps Diagnostic',
+      step: step ? `Step ${step.n} of ${STEPS.length}: ${step.name} | The 9 Steps Diagnostic` : 'The 9 Steps Diagnostic',
+      details: 'Your report is ready | The 9 Steps Diagnostic',
+      results: 'Your 9 Steps report | Business Leader',
+    }[state.screen]
   }
 
   function render() {
     const views = {
-      intro: renderIntro,
+      intro: isCheck() ? renderCheckIntro : renderIntro,
+      questions: renderQuestions,
       profile: renderProfile,
       step: () => renderStep(state.step),
       details: renderDetails,
-      results: renderResults,
+      results: isCheck() ? renderCheckResults : renderResults,
     }
     app.innerHTML = views[state.screen]()
-    document.title = TITLES[state.screen]()
+    document.title = title()
     if (state.screen === 'results') onResultsShown()
   }
 
   function progress({ current = -1, label, right = '' }) {
-    const done = STEPS.filter((_, i) => stepComplete(i)).length
-    const segments = STEPS.map((_, i) => {
-      const cls = i === current ? ' is-current' : stepComplete(i) ? ' is-done' : ''
-      return `<span class="progress-seg${cls}"></span>`
-    }).join('')
+    let segments
+    let done
+    let total
+    if (isCheck()) {
+      const stages = ['questions', 'profile', 'details']
+      const at = stages.indexOf(state.screen)
+      segments = stages.map((_, i) => (i < at ? ' is-done' : i === at ? ' is-current' : ''))
+      done = Math.max(at, 0)
+      total = stages.length
+    } else {
+      segments = FLOW_STEPS.map((n, i) => (i === current ? ' is-current' : stepComplete(n) ? ' is-done' : ''))
+      done = FLOW_STEPS.filter((n) => stepComplete(n)).length
+      total = FLOW_STEPS.length
+    }
     return `
-      <div class="progress" role="progressbar" aria-label="Diagnostic progress" aria-valuemin="0" aria-valuemax="${STEPS.length}"
-        aria-valuenow="${done}" aria-valuetext="${esc(label)}. ${done} of ${STEPS.length} steps complete.">
-        <div class="progress-segs" aria-hidden="true">${segments}</div>
+      <div class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="${total}"
+        aria-valuenow="${done}" aria-valuetext="${esc(label)}. ${done} of ${total} ${isCheck() ? 'parts' : 'steps'} complete.">
+        <div class="progress-segs${isCheck() ? ' progress-segs--3' : ''}" aria-hidden="true">
+          ${segments.map((cls) => `<span class="progress-seg${cls}"></span>`).join('')}
+        </div>
         <p class="progress-text" aria-hidden="true"><span>${esc(label)}</span><span>${esc(right)}</span></p>
       </div>`
   }
 
-  function startButton(extraClass = '') {
+  function startButton(extraClass = '', label = 'Start the diagnostic') {
     const resume = hasProgress()
     return `<button type="button" class="btn btn-primary ${extraClass}" data-action="${resume ? 'resume' : 'start'}">
-      ${resume ? 'Continue where you left off' : 'Start the diagnostic'} ${svg(icon.arrowRight)}</button>`
+      ${resume ? 'Continue where you left off' : esc(label)} ${svg(icon.arrowRight)}</button>`
+  }
+
+  function resumeLine() {
+    return hasProgress()
+      ? '<p class="hero-resume">Or <button type="button" class="btn-text" data-action="restart">start again</button> from the beginning.</p>'
+      : ''
+  }
+
+  function heroMeta() {
+    return `<p class="hero-meta">
+      <span>${svg(icon.clock)} About ${FLOW.minutes} minutes</span>
+      <span>${svg(icon.list)} ${FLOW.statements.length} statements</span>
+      <span>${svg(icon.file)} Free personal report</span>
+    </p>`
+  }
+
+  function stairs(highlight = null) {
+    const items = STEPS.map((s, i) => {
+      const cls = highlight ? (highlight.includes(s.n) ? ' is-on' : ' is-dim') : ''
+      const note = highlight && highlight.includes(s.n) ? '<span class="sr-only"> (in this check)</span>' : ''
+      return `<li class="stair${cls}" style="--i:${i}"><span class="stair-n">${pad(s.n)}</span><span>${esc(s.name)}</span>${note}</li>`
+    }).join('')
+    return `
+      <div class="stairs-wrap">
+        <p class="stairs-top" aria-hidden="true"><span class="bl-dot"></span>£1bn</p>
+        <ol class="stairs" aria-label="The 9 Steps to a Billion">${items}</ol>
+        ${highlight ? `<p class="stairs-note">This check covers steps ${listOf(highlight.map(String))} of the nine.</p>` : ''}
+      </div>`
+  }
+
+  function checkCards(excludeId = null) {
+    return `
+      <ul class="check-grid">
+        ${CHECKS.filter((c) => c.id !== excludeId)
+          .map(
+            (c) => `
+          <li>
+            <a class="check-card" href="${esc(checkUrl(c))}" data-cta="open-check-${esc(c.id)}">
+              <span class="kicker">${c.minutes || 2}-minute check · ${esc(c.name)}</span>
+              <strong>${esc(c.title)}</strong>
+              <span class="check-steps">Covers ${listOf(stepsOf(c).map((n) => esc(stepByN(n).name)))}</span>
+              <span class="link-arrow">Take the check ${svg(icon.arrowRight)}</span>
+            </a>
+          </li>`,
+          )
+          .join('')}
+      </ul>`
+  }
+
+  function fullDiagnosticPanel(heading, text, headingId = '') {
+    return `
+      <div class="full-panel">
+        <div>
+          <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>Want the full picture?</p>
+          <h2 ${headingId ? `id="${headingId}" ` : ''}class="section-title">${esc(heading)}</h2>
+          <p class="section-intro">${esc(text)}</p>
+        </div>
+        <a class="btn btn-secondary" href="./" data-cta="full-diagnostic">Take the full diagnostic ${svg(icon.arrowRight)}</a>
+      </div>`
   }
 
   function renderIntro() {
-    const stairs = STEPS.map(
-      (s, i) => `<li class="stair" style="--i:${i}"><span class="stair-n">${pad(s.n)}</span><span>${esc(s.name)}</span></li>`,
-    ).join('')
     const list = STEPS.map(
       (s) =>
         `<li><span class="n">${pad(s.n)}</span><span><strong>${esc(s.name)}</strong><span class="short">${esc(s.short)}</span></span></li>`,
@@ -340,18 +512,11 @@
               Rate your business against each step and get a personal report on where you are strong, where you are stuck and what to do next.</p>
             <div class="hero-cta">
               ${startButton('btn-lg')}
-              <p class="hero-meta">
-                <span>${svg(icon.clock)} About ${C.meta.minutes} minutes</span>
-                <span>${svg(icon.list)} ${TOTAL_STATEMENTS} statements</span>
-                <span>${svg(icon.file)} Free personal report</span>
-              </p>
+              ${heroMeta()}
             </div>
-            ${hasProgress() ? '<p class="hero-resume">Or <button type="button" class="btn-text" data-action="restart">start again</button> from the beginning.</p>' : ''}
+            ${resumeLine()}
           </div>
-          <div class="stairs-wrap">
-            <p class="stairs-top" aria-hidden="true"><span class="bl-dot"></span>£1bn</p>
-            <ol class="stairs" aria-label="The 9 Steps to a Billion">${stairs}</ol>
-          </div>
+          ${stairs()}
         </div>
       </section>
 
@@ -368,6 +533,19 @@
           </ol>
         </div>
       </section>
+
+      ${
+        CHECKS.length
+          ? `<section class="section section-tight" aria-labelledby="checks-title">
+        <div class="container">
+          <h2 id="checks-title" class="section-title">Short on time? Start with one challenge</h2>
+          <p class="section-intro">Four 2-minute checks on the challenges founders and CEOs raise most: six statements each,
+            a short report, and what to read and watch next.</p>
+          ${checkCards()}
+        </div>
+      </section>`
+          : ''
+      }
 
       <section class="section section-tight" aria-labelledby="framework-title">
         <div class="container">
@@ -389,6 +567,105 @@
       </section>`
   }
 
+  function renderCheckIntro() {
+    const check = FLOW.check
+    const heading = esc(check.title).replace(esc(check.highlight), `<mark>${esc(check.highlight)}</mark>`)
+    const n = FLOW.statements.length
+    return `
+      <section class="hero on-dark" aria-labelledby="intro-title">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>A ${FLOW.minutes}-minute check · ${esc(C.meta.name)}</p>
+            <h1 id="intro-title" tabindex="-1" data-focus>${heading}</h1>
+            <p class="lead">${esc(check.lead)}</p>
+            <div class="hero-cta">
+              ${startButton('btn-lg', 'Start the check')}
+              ${heroMeta()}
+            </div>
+            ${resumeLine()}
+          </div>
+          ${stairs(FLOW_STEPS)}
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="how-title">
+        <div class="container">
+          <h2 id="how-title" class="section-title">How it works</h2>
+          <ol class="how-grid">
+            <li class="how-card"><span class="how-n" aria-hidden="true">1</span><h3>Rate ${word(n)} statements</h3>
+              <p>Each one comes from Sir Richard Harpin's 9 Steps to a Billion. Go with your first instinct.</p></li>
+            <li class="how-card"><span class="how-n" aria-hidden="true">2</span><h3>Tell us about your business</h3>
+              <p>Three quick taps: your role, your turnover and your ambition.</p></li>
+            <li class="how-card"><span class="how-n" aria-hidden="true">3</span><h3>Get your report</h3>
+              <p>Your score, where to start, Richard's practical next moves, and what to read and watch next.</p></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section section-tight" aria-labelledby="more-title">
+        <div class="container">
+          <h2 id="more-title" class="section-title">More 2-minute checks</h2>
+          ${checkCards(check.id)}
+          ${fullDiagnosticPanel(
+            'The full 9 Steps Diagnostic',
+            `This check covers ${word(FLOW_STEPS.length)} of Richard's 9 Steps. The full diagnostic covers all nine in about ${C.meta.minutes} minutes, with a report across every step.`,
+          )}
+        </div>
+      </section>`
+  }
+
+  function statementFieldset(idx, number) {
+    const value = state.answers[idx]
+    return `
+      <fieldset class="question statement" data-question="${idx}">
+        <legend><span class="statement-n" aria-hidden="true">${number}</span><span>${esc(FLOW.statements[idx].text)}</span></legend>
+        <div class="scale">
+          ${C.scale
+            .map(
+              (o) => `<label class="scale-option"><input type="radio" name="s-${idx}" value="${o.value}" data-statement="${idx}"
+                ${value === o.value ? 'checked' : ''} /><span>${esc(o.label)}</span></label>`,
+            )
+            .join('')}
+        </div>
+      </fieldset>`
+  }
+
+  function navButtons(nextLabel) {
+    return `
+      <p class="form-error" role="alert" hidden></p>
+      <div class="nav">
+        <button type="button" class="btn btn-text" data-action="back">${svg(icon.arrowLeft)} Back</button>
+        <button type="submit" class="btn btn-primary">${esc(nextLabel)} ${svg(icon.arrowRight)}</button>
+      </div>`
+  }
+
+  function renderQuestions() {
+    const check = FLOW.check
+    let number = 0
+    const groups = FLOW_STEPS.map((n) => {
+      const items = STEP_INDICES[n].map((idx) => statementFieldset(idx, (number += 1))).join('')
+      return `
+        <div class="q-group">
+          <p class="q-group-head"><span class="q-group-n" aria-hidden="true">${pad(n)}</span><span>Step ${n}: ${esc(stepByN(n).name)}</span></p>
+          <div class="qform">${items}</div>
+        </div>`
+    }).join('')
+    return `
+      <section class="screen" aria-labelledby="questions-title">
+        <div class="container narrow">
+          ${progress({ label: `${check.name} check`, right: `About ${FLOW.minutes} minutes` })}
+          <p class="eyebrow">${esc(check.name)} · ${FLOW.statements.length} statements</p>
+          <h1 id="questions-title" class="screen-title" tabindex="-1" data-focus>How true is each of these for you today?</h1>
+          <p class="lead">${capitalise(word(FLOW.statements.length))} statements from ${word(FLOW_STEPS.length)} of Sir Richard Harpin's 9 Steps.
+            Go with your first instinct.</p>
+          <form id="questions-form" novalidate>
+            ${groups}
+            ${navButtons('Continue')}
+          </form>
+        </div>
+      </section>`
+  }
+
   function renderProfile() {
     const questions = C.profile
       .map(
@@ -406,47 +683,39 @@
         </fieldset>`,
       )
       .join('')
+    const copy = isCheck()
+      ? {
+          progress: { label: 'About your business', right: 'About a minute left' },
+          eyebrow: 'Nearly there',
+          title: 'Now, a little about your business',
+          lead: 'Three quick taps so your report reflects your stage and your ambition.',
+        }
+      : {
+          progress: { label: 'Before you start', right: `About ${FLOW.minutes} minutes in total` },
+          eyebrow: 'Before you start',
+          title: 'First, a little about you',
+          lead: 'Three quick questions so your report reflects your stage and your ambition.',
+        }
     return `
       <section class="screen" aria-labelledby="profile-title">
         <div class="container narrow">
-          ${progress({ label: 'Before you start', right: `About ${C.meta.minutes} minutes in total` })}
-          <p class="eyebrow">Before you start</p>
-          <h1 id="profile-title" class="screen-title" tabindex="-1" data-focus>First, a little about you</h1>
-          <p class="lead">Three quick questions so your report reflects your stage and your ambition.</p>
+          ${progress(copy.progress)}
+          <p class="eyebrow">${esc(copy.eyebrow)}</p>
+          <h1 id="profile-title" class="screen-title" tabindex="-1" data-focus>${esc(copy.title)}</h1>
+          <p class="lead">${esc(copy.lead)}</p>
           <form id="profile-form" novalidate>
             <div class="qform">${questions}</div>
-            <p class="form-error" role="alert" hidden></p>
-            <div class="nav">
-              <button type="button" class="btn btn-text" data-action="back">${svg(icon.arrowLeft)} Back</button>
-              <button type="submit" class="btn btn-primary">Continue ${svg(icon.arrowRight)}</button>
-            </div>
+            ${navButtons('Continue')}
           </form>
         </div>
       </section>`
   }
 
   function renderStep(i) {
-    const step = STEPS[i]
-    const statements = step.statements
-      .map((text, j) => {
-        const idx = OFFSETS[i] + j
-        const value = state.answers[idx]
-        return `
-        <fieldset class="question statement" data-question="${idx}">
-          <legend><span class="statement-n" aria-hidden="true">${j + 1}</span><span>${esc(text)}</span></legend>
-          <div class="scale">
-            ${C.scale
-              .map(
-                (o) => `<label class="scale-option"><input type="radio" name="s-${idx}" value="${o.value}" data-statement="${idx}"
-                  ${value === o.value ? 'checked' : ''} /><span>${esc(o.label)}</span></label>`,
-              )
-              .join('')}
-          </div>
-        </fieldset>`
-      })
-      .join('')
-    const minutesLeft = Math.max(1, Math.round((STEPS.length - i) * (C.meta.minutes / STEPS.length)))
-    const last = i === STEPS.length - 1
+    const step = stepByN(FLOW_STEPS[i])
+    const statements = STEP_INDICES[step.n].map((idx, j) => statementFieldset(idx, j + 1)).join('')
+    const minutesLeft = Math.max(1, Math.round((FLOW_STEPS.length - i) * (FLOW.minutes / FLOW_STEPS.length)))
+    const last = i === FLOW_STEPS.length - 1
     return `
       <section class="screen" aria-labelledby="step-title">
         <div class="container narrow">
@@ -462,11 +731,7 @@
           <form id="step-form" novalidate>
             <p class="instructions">How true is each statement for you and your business today?</p>
             <div class="qform">${statements}</div>
-            <p class="form-error" role="alert" hidden></p>
-            <div class="nav">
-              <button type="button" class="btn btn-text" data-action="back">${svg(icon.arrowLeft)} Back</button>
-              <button type="submit" class="btn btn-primary">${last ? 'Finish' : 'Next step'} ${svg(icon.arrowRight)}</button>
-            </div>
+            ${navButtons(last ? 'Finish' : 'Next step')}
           </form>
         </div>
       </section>`
@@ -481,13 +746,24 @@
           ${required ? 'required aria-required="true"' : ''} aria-describedby="f-${name}-error" />
         <p class="field-error" id="f-${name}-error" hidden></p>
       </div>`
+    const copy = isCheck()
+      ? {
+          progress: { label: 'Last step', right: 'One last thing' },
+          eyebrow: `${FLOW.check.name} check complete`,
+          lead: 'Tell us who you are to see it: your score, where to start, Richard’s practical next moves, and what to read and watch next.',
+        }
+      : {
+          progress: { label: 'All 9 steps complete', right: 'One last thing' },
+          eyebrow: 'All 9 steps complete',
+          lead: 'Tell us who you are to see it: your score out of 100, your strongest steps and your three priority steps, with practical next moves.',
+        }
     return `
       <section class="screen" aria-labelledby="details-title">
         <div class="container narrow">
-          ${progress({ label: 'All 9 steps complete', right: 'One last thing' })}
-          <p class="eyebrow">All 9 steps complete</p>
+          ${progress(copy.progress)}
+          <p class="eyebrow">${esc(copy.eyebrow)}</p>
           <h1 id="details-title" class="screen-title" tabindex="-1" data-focus>Your report is ready</h1>
-          <p class="lead">Tell us who you are to see it: your score out of 100, your strongest steps and your three priority steps, with practical next moves.</p>
+          <p class="lead">${esc(copy.lead)}</p>
           <form id="details-form" class="question details-card" novalidate>
             <div class="field-grid">
               ${field('firstName', 'First name', { autocomplete: 'given-name' })}
@@ -501,65 +777,50 @@
               <span>Send me Business Leader's insights, events and offers by email. You can unsubscribe at any time.</span></label>
             <p class="small">We use your details to produce your report, and a member of the Business Leader team may get in touch to talk
               through your results. See our <a href="${esc(LINKS.privacy)}" ${newTab}>privacy policy${newTabNote}</a>.</p>
-            <p class="form-error" role="alert" hidden></p>
-            <div class="nav">
-              <button type="button" class="btn btn-text" data-action="back">${svg(icon.arrowLeft)} Back</button>
-              <button type="submit" class="btn btn-primary">See my report ${svg(icon.arrowRight)}</button>
-            </div>
+            ${navButtons('See my report')}
             ${CFG.requireDetails === false ? '<p class="skip-row"><button type="button" class="btn-text" data-action="skip-details">Skip and see my report</button></p>' : ''}
           </form>
         </div>
       </section>`
   }
 
+  /* ---------- Report pieces shared by both flows ---------- */
+
   function chip(status) {
     const glyph = { strength: icon.check, developing: icon.half, gap: icon.gap }[status]
     return `<span class="chip chip-${status}">${svg(glyph)}${esc(C.status[status].label)}</span>`
   }
 
-  function renderResults() {
-    const r = score(state.answers)
-    const stage = C.stages[state.profile.turnover] || null
+  function resultsHero({ eyebrow, heading, r, label, text, facts, ambitionStep }) {
     const ambition = profileOption('ambition', state.profile.ambition)
-    const code = encodeReport()
-    const top = r.high[0]
-    const low = r.low[0]
-    const name = state.shared ? '' : state.firstName
-    const heading = name
-      ? `${esc(name)}, here’s where your business stands`
-      : state.shared
-        ? 'Here’s where this business stands'
-        : 'Here’s where your business stands'
-
-    const facts = [
-      stage ? `<div><dt>Stage</dt><dd>${esc(stage.name)}<span>${esc(stage.range)}. ${esc(stage.focus)}</span></dd></div>` : '',
-      r.even
-        ? `<div><dt>Across the 9 Steps</dt><dd>Level scores<span>Every step scored ${top.score}/100.</span></dd></div>`
-        : `<div><dt>Strongest step</dt><dd>${pad(top.n)} ${esc(top.name)}<span>${top.score}/100</span></dd></div>
-           <div><dt>Biggest opportunity</dt><dd>${pad(low.n)} ${esc(low.name)}<span>${low.score}/100</span></dd></div>`,
-    ].join('')
-
-    const hero = `
+    return `
       <section class="results-hero on-dark" aria-labelledby="results-title">
         <div class="container">
           <div>
-            <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>${state.shared ? 'Shared 9 Steps report' : 'Your 9 Steps report'}</p>
+            <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>${esc(eyebrow)}</p>
             <h1 id="results-title" tabindex="-1" data-focus>${heading}</h1>
             <div class="score-block">
-              <p class="score"><span class="score-value">${r.overall}</span><span class="score-max">/100</span><span class="sr-only"> overall 9 Steps score</span></p>
+              <p class="score"><span class="score-value">${r.overall}</span><span class="score-max">/100</span><span class="sr-only"> overall score</span></p>
               <svg class="score-meter" height="8" aria-hidden="true" focusable="false">
                 <rect class="score-track" width="100%" height="8" rx="4" />
                 ${r.overall > 0 ? `<rect class="score-fill" width="${r.overall}%" height="8" rx="4" />` : ''}
               </svg>
-              <p class="band"><mark>${esc(r.band.label)}</mark></p>
-              <p class="band-text">${esc(r.band.text)}</p>
-              ${ambition ? `<p class="ambition-line">To ${esc(ambition.phrase)}, start with <strong>Step ${low.n}: ${esc(low.name)}</strong>.</p>` : ''}
+              <p class="band"><mark>${esc(label)}</mark></p>
+              <p class="band-text">${esc(text)}</p>
+              ${ambition ? `<p class="ambition-line">To ${esc(ambition.phrase)}, start with <strong>Step ${ambitionStep.n}: ${esc(ambitionStep.name)}</strong>.</p>` : ''}
             </div>
           </div>
           <dl class="facts">${facts}</dl>
         </div>
       </section>`
+  }
 
+  function stageFact() {
+    const stage = C.stages[state.profile.turnover]
+    return stage ? `<div><dt>Stage</dt><dd>${esc(stage.name)}<span>${esc(stage.range)}. ${esc(stage.focus)}</span></dd></div>` : ''
+  }
+
+  function profileChart(r) {
     const rows = r.steps
       .map(
         (s) => `
@@ -574,31 +835,126 @@
               <span class="row-chev" aria-hidden="true">${svg(icon.chevron)}</span>
             </summary>
             <ul class="row-answers" aria-label="Your answers for ${esc(s.name)}">
-              ${s.statements.map((t, j) => `<li><span class="answer-tag">${esc(scaleLabel(s.vals[j]))}</span><span>${esc(t)}</span></li>`).join('')}
+              ${s.items.map((t, j) => `<li><span class="answer-tag">${esc(scaleLabel(s.vals[j]))}</span><span>${esc(t)}</span></li>`).join('')}
             </ul>
           </details>
         </li>`,
       )
       .join('')
+    return `
+      <div class="profile-card"><ol class="profile-list">${rows}</ol></div>
+      <ul class="legend-row" aria-label="Key">
+        ${['strength', 'developing', 'gap'].map((k) => `<li>${chip(k)} ${esc(C.status[k].key)}</li>`).join('')}
+      </ul>`
+  }
 
-    const cards = r.priorities
-      .map(
-        (s, k) => `
-        <article class="priority-card" id="step-${s.id}" aria-labelledby="prio-${s.id}">
-          <div class="priority-top"><span class="priority-rank">${r.frontier ? 'Next frontier' : 'Priority'} ${k + 1}</span>${chip(s.status)}</div>
-          <h3 id="prio-${s.id}"><span class="num">${pad(s.n)}</span><span>${esc(s.name)}</span></h3>
-          <p class="priority-score">Your score: <strong>${s.score}/100</strong></p>
-          <p class="principle">${esc(s.principle)}</p>
-          <h4>Try this next</h4>
-          <ol class="actions">${s.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>
-          <div class="bl-helps"><span class="bl-dot" aria-hidden="true"></span><p><strong>How Business Leader helps:</strong> ${esc(s.blHelps)}</p></div>
-          <p class="watch">
+  function stepCard(s, rank) {
+    return `
+      <article class="priority-card" id="step-${s.id}" aria-labelledby="card-${s.id}">
+        <div class="priority-top"><span class="priority-rank">${esc(rank)}</span>${chip(s.status)}</div>
+        <h3 id="card-${s.id}"><span class="num">${pad(s.n)}</span><span>${esc(s.name)}</span></h3>
+        <p class="priority-score">Your score: <strong>${s.score}/100</strong></p>
+        <p class="principle">${esc(s.principle)}</p>
+        <h4>Try this next</h4>
+        <ol class="actions">${s.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>
+        <div class="bl-helps"><span class="bl-dot" aria-hidden="true"></span><p><strong>How Business Leader helps:</strong> ${esc(s.blHelps)}</p></div>
+        <div class="step-links">
+          <p>
             <a class="link-arrow" href="${esc(watchUrl(s.watch))}" ${newTab} data-cta="watch-step-${s.n}">${svg(icon.play)} Watch Richard on this step${newTabNote}</a>
             <small>With ${esc(s.watch.guest)}, ${esc(s.watch.guestRole)}, on the 9 Steps podcast</small>
           </p>
-        </article>`,
-      )
-      .join('')
+          ${
+            s.read
+              ? `<p>
+            <a class="link-arrow" href="${esc(s.read.url)}" ${newTab} data-cta="read-step-${s.n}">${svg(icon.book)} ${esc(s.read.title)}${newTabNote}</a>
+            <small>On businessleader.co.uk</small>
+          </p>`
+              : ''
+          }
+        </div>
+      </article>`
+  }
+
+  function contentCard(item, cta, action = '') {
+    const label = action || (/video/i.test(item.kind) ? 'Watch on YouTube' : 'Read on Business Leader')
+    return `
+      <a class="deeper-card" href="${esc(item.url)}" ${newTab} data-cta="${esc(cta)}">
+        <span class="kicker">${esc(item.kind)}${item.step ? ` · Step ${item.step}: ${esc(stepByN(item.step).name)}` : ''}</span>
+        <strong>${esc(item.title)}</strong>
+        ${item.blurb ? `<p>${esc(item.blurb)}</p>` : ''}
+        <span class="link-arrow">${esc(label)} ${svg(icon.arrowUpRight)}</span>${newTabNote}</a>`
+  }
+
+  function ctaPanel({ title: heading, text }) {
+    const stage = C.stages[state.profile.turnover]
+    const inIcp = stage ? stage.inIcp : true
+    if (!inIcp) {
+      return `
+        <div class="cta-panel on-dark">
+          <div>
+            <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>Your next step</p>
+            <h2>Keep building towards £3m</h2>
+            <p class="cta-text">Business Leader membership is designed for founders and CEOs of £3m+ businesses. Until you get there, Richard's book,
+              the 9 Steps podcast and our weekly newsletter will help you work through your priority steps.</p>
+          </div>
+          <div class="cta-buttons">
+            <a class="btn btn-primary btn-lg" href="${esc(LINKS.newsletter)}" ${newTab} data-cta="newsletter">Get the weekly newsletter ${svg(icon.arrowRight)}${newTabNote}</a>
+            <a class="btn btn-secondary btn-lg" href="${esc(LINKS.book)}" ${newTab} data-cta="book">Read the book${newTabNote}</a>
+          </div>
+        </div>`
+    }
+    return `
+      <div class="cta-panel on-dark">
+        <div>
+          <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>Your next step</p>
+          <h2>${esc(heading)}</h2>
+          <p class="cta-text">${esc(text)} Talk to a membership adviser about your results; it's a conversation, not a commitment.</p>
+        </div>
+        <div class="cta-buttons">
+          <a class="btn btn-primary btn-lg" href="${esc(LINKS.bookConversation)}" ${newTab} data-cta="book-conversation">Book a conversation ${svg(icon.arrowRight)}${newTabNote}</a>
+          <a class="btn btn-secondary btn-lg" href="${esc(LINKS.roundtable)}" ${newTab} data-cta="roundtable">Join a Roundtable with Sir Richard Harpin${newTabNote}</a>
+          <p class="cta-note">Roundtables are small-group sessions where Richard shares how he scaled HomeServe and the 9 Steps in practice.</p>
+        </div>
+      </div>`
+  }
+
+  function reportActions(code) {
+    return `
+      <div class="report-actions">
+        <button type="button" class="btn btn-secondary btn-sm" data-action="print">${svg(icon.print)} Save as PDF</button>
+        ${code ? `<button type="button" class="btn btn-secondary btn-sm" data-action="copy-link" data-url="${esc(reportUrl(code))}">${svg(icon.link)} Copy link to this report</button>` : ''}
+        <button type="button" class="btn btn-text" data-action="restart">${state.shared ? (isCheck() ? 'Take the check yourself' : 'Take the diagnostic yourself') : 'Start again'}</button>
+      </div>
+      <p class="print-only small">${esc(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))}.
+        Take it yourself at ${esc(location.origin + location.pathname + (isCheck() ? checkUrl(FLOW.check) : ''))}</p>`
+  }
+
+  function sharedBanner() {
+    if (!state.shared) return ''
+    return `<div class="shared-banner"><div class="container"><p>You are viewing a shared ${isCheck() ? `${esc(FLOW.check.name)} check` : '9 Steps report'}.</p>
+      <button type="button" class="btn btn-secondary btn-sm" data-action="restart">${isCheck() ? 'Take the check yourself' : 'Take the diagnostic yourself'}</button></div></div>`
+  }
+
+  /* ---------- The full diagnostic's report ---------- */
+
+  function renderResults() {
+    const r = score(state.answers)
+    const code = encodeReport()
+    const top = r.high[0]
+    const low = r.low[0]
+    const name = state.shared ? '' : state.firstName
+    const heading = name
+      ? `${esc(name)}, here’s where your business stands`
+      : state.shared
+        ? 'Here’s where this business stands'
+        : 'Here’s where your business stands'
+    const facts = [
+      stageFact(),
+      r.even
+        ? `<div><dt>Across the 9 Steps</dt><dd>Level scores<span>Every step scored ${top.score}/100.</span></dd></div>`
+        : `<div><dt>Strongest step</dt><dd>${pad(top.n)} ${esc(top.name)}<span>${top.score}/100</span></dd></div>
+           <div><dt>Biggest opportunity</dt><dd>${pad(low.n)} ${esc(low.name)}<span>${low.score}/100</span></dd></div>`,
+    ].join('')
 
     let strengthsBody
     if (r.even) {
@@ -623,71 +979,40 @@
         </ul>`
     }
 
-    const inIcp = stage ? stage.inIcp : true
-    const cta = inIcp
-      ? `
-        <div>
-          <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>Your next step</p>
-          <h2>Talk through your results with us</h2>
-          <p class="cta-text">A membership adviser will take you through your 9 Steps profile and show how founders and CEOs at your stage use
-            Business Leader's peer forums, CEO coaching and 12-month Growth Plan to work on their priority steps. It's a conversation, not a commitment.</p>
-        </div>
-        <div class="cta-buttons">
-          <a class="btn btn-primary btn-lg" href="${esc(LINKS.bookConversation)}" ${newTab} data-cta="book-conversation">Book a conversation ${svg(icon.arrowRight)}${newTabNote}</a>
-          <a class="btn btn-secondary btn-lg" href="${esc(LINKS.roundtable)}" ${newTab} data-cta="roundtable">Join a Roundtable with Sir Richard Harpin${newTabNote}</a>
-          <p class="cta-note">Roundtables are small-group sessions where Richard shares how he scaled HomeServe and the 9 Steps in practice.</p>
-        </div>`
-      : `
-        <div>
-          <p class="eyebrow"><span class="bl-dot" aria-hidden="true"></span>Your next step</p>
-          <h2>Keep building towards £3m</h2>
-          <p class="cta-text">Business Leader membership is designed for founders and CEOs of £3m+ businesses. Until you get there, Richard's book,
-            the 9 Steps podcast and our weekly newsletter will help you work through your priority steps.</p>
-        </div>
-        <div class="cta-buttons">
-          <a class="btn btn-primary btn-lg" href="${esc(LINKS.newsletter)}" ${newTab} data-cta="newsletter">Get the weekly newsletter ${svg(icon.arrowRight)}${newTabNote}</a>
-          <a class="btn btn-secondary btn-lg" href="${esc(LINKS.book)}" ${newTab} data-cta="book">Read the book${newTabNote}</a>
-        </div>`
-
     const deeper = `
       <div class="deeper-grid">
-        <a class="deeper-card" href="${esc(LINKS.book)}" ${newTab} data-cta="deeper-book">
-          <span class="kicker">The book</span><strong>How to Make a Billion in Nine Steps</strong>
-          <p>Richard's Sunday Times bestseller, with the full story behind each step.</p>
-          <span class="link-arrow">Get the book ${svg(icon.arrowUpRight)}</span>${newTabNote}</a>
-        <a class="deeper-card" href="${esc(LINKS.podcastSpotify)}" ${newTab} data-cta="deeper-podcast">
-          <span class="kicker">The podcast</span><strong>How to Make a Billion in 9 Steps</strong>
-          <p>Three episodes, three steps each, with Touker Suleyman, Steve Hewitt and Jonathan King.</p>
-          <span class="link-arrow">Listen on Spotify ${svg(icon.arrowUpRight)}</span>${newTabNote}</a>
-        <a class="deeper-card" href="${esc(LINKS.bookExtract)}" ${newTab} data-cta="deeper-extract">
-          <span class="kicker">Read</span><strong>Why the hardest leadership skill is saying no</strong>
-          <p>An extract from the book on focus, foxes and hedgehogs, and the not-to-do list.</p>
-          <span class="link-arrow">Read on Business Leader ${svg(icon.arrowUpRight)}</span>${newTabNote}</a>
+        ${contentCard(
+          { kind: 'The book', title: 'How to Make a Billion in Nine Steps', blurb: "Richard's Sunday Times bestseller, with the full story behind each step.", url: LINKS.book },
+          'deeper-book',
+          'Get the book',
+        )}
+        ${contentCard(
+          { kind: 'The podcast', title: 'How to Make a Billion in 9 Steps', blurb: 'Three episodes, three steps each, with Touker Suleyman, Steve Hewitt and Jonathan King.', url: LINKS.podcastSpotify },
+          'deeper-podcast',
+          'Listen on Spotify',
+        )}
+        ${contentCard(
+          { kind: 'Read', title: 'Why the hardest leadership skill is saying no', blurb: 'An extract from the book on focus, foxes and hedgehogs, and the not-to-do list.', url: LINKS.bookExtract },
+          'deeper-extract',
+        )}
       </div>`
-
-    const actions = `
-      <div class="report-actions">
-        <button type="button" class="btn btn-secondary btn-sm" data-action="print">${svg(icon.print)} Save as PDF</button>
-        ${code ? `<button type="button" class="btn btn-secondary btn-sm" data-action="copy-link" data-url="${esc(reportUrl(code))}">${svg(icon.link)} Copy link to this report</button>` : ''}
-        <button type="button" class="btn btn-text" data-action="restart">${state.shared ? 'Take the diagnostic yourself' : 'Start again'}</button>
-      </div>`
-
-    const banner = state.shared
-      ? `<div class="shared-banner"><div class="container"><p>You are viewing a shared 9 Steps report.</p>
-          <button type="button" class="btn btn-secondary btn-sm" data-action="restart">Take the diagnostic yourself</button></div></div>`
-      : ''
 
     return `
-      ${banner}
-      ${hero}
+      ${sharedBanner()}
+      ${resultsHero({
+        eyebrow: state.shared ? 'Shared 9 Steps report' : 'Your 9 Steps report',
+        heading,
+        r,
+        label: r.band.label,
+        text: r.band.text,
+        facts,
+        ambitionStep: low,
+      })}
       <section class="results-section" aria-labelledby="profile-heading">
         <div class="container">
           <h2 id="profile-heading" class="section-title">Your profile across the 9 Steps</h2>
           <p class="section-intro">Each step is scored out of 100 from your three answers. Select a step to see how you answered.</p>
-          <div class="profile-card"><ol class="profile-list">${rows}</ol></div>
-          <ul class="legend-row" aria-label="Key">
-            ${['strength', 'developing', 'gap'].map((k) => `<li>${chip(k)} ${esc(C.status[k].key)}</li>`).join('')}
-          </ul>
+          ${profileChart(r)}
         </div>
       </section>
 
@@ -699,7 +1024,7 @@
               ? 'You are strong across the board. These are the steps with the most room left, and where your next gains will come from.'
               : 'The steps where focused effort will move your business fastest. Start with the first.'
           }</p>
-          <div class="priority-grid">${cards}</div>
+          <div class="priority-grid">${r.priorities.map((s, k) => stepCard(s, `${r.frontier ? 'Next frontier' : 'Priority'} ${k + 1}`)).join('')}</div>
         </div>
       </section>
 
@@ -711,15 +1036,114 @@
       </section>
 
       <section class="results-section" aria-label="Your next step">
-        <div class="container"><div class="cta-panel on-dark">${cta}</div></div>
+        <div class="container">${ctaPanel({
+          title: 'Talk through your results with us',
+          text: "A membership adviser will take you through your 9 Steps profile and show how founders and CEOs at your stage use Business Leader's peer forums, CEO coaching and 12-month Growth Plan to work on their priority steps.",
+        })}</div>
       </section>
 
       <section class="results-section" aria-labelledby="deeper-heading">
         <div class="container">
           <h2 id="deeper-heading" class="section-title">Go deeper into the 9 Steps</h2>
           ${deeper}
-          ${actions}
-          <p class="print-only small">Your 9 Steps report, ${esc(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))}. Take the diagnostic at ${esc(location.origin + location.pathname)}</p>
+          ${reportActions(code)}
+        </div>
+      </section>`
+  }
+
+  /* ---------- A 2-minute check's report ---------- */
+
+  // The check's reading list, most relevant first: items on the weakest step, then the next weakest.
+  // Anything already linked from a step card below is skipped.
+  function recommended(r) {
+    const shown = new Set(r.low.map((s) => s.read && s.read.url).filter(Boolean))
+    const rank = (item) => {
+      const pos = r.low.findIndex((s) => s.n === item.step)
+      return pos === -1 ? r.low.length : pos
+    }
+    return FLOW.check.reading
+      .filter((item) => !shown.has(item.url))
+      .map((item, order) => ({ item, order }))
+      .sort((a, b) => rank(a.item) - rank(b.item) || a.order - b.order)
+      .slice(0, 3)
+      .map((x) => x.item)
+  }
+
+  function renderCheckResults() {
+    const check = FLOW.check
+    const r = score(state.answers)
+    const code = encodeReport()
+    const verdict = check.verdicts.find((v) => r.overall >= v.min) || check.verdicts[check.verdicts.length - 1]
+    const top = r.high[0]
+    const low = r.low[0]
+    const name = state.shared ? '' : state.firstName
+    const heading = name
+      ? `${esc(name)}, ${esc(check.resultHeading)}`
+      : state.shared
+        ? `${esc(check.name)}: the results`
+        : esc(capitalise(check.resultHeading))
+    const facts = [
+      stageFact(),
+      r.even
+        ? `<div><dt>Across this check</dt><dd>Level scores<span>Every step scored ${top.score}/100.</span></dd></div>`
+        : `<div><dt>Strongest step</dt><dd>${pad(top.n)} ${esc(top.name)}<span>${top.score}/100</span></dd></div>
+           <div><dt>Start with</dt><dd>${pad(low.n)} ${esc(low.name)}<span>${low.score}/100</span></dd></div>`,
+    ].join('')
+    const reading = recommended(r)
+    const stepNames = listOf(FLOW_STEPS.map((n) => esc(stepByN(n).name)))
+
+    return `
+      ${sharedBanner()}
+      ${resultsHero({
+        eyebrow: state.shared ? `Shared ${check.name} check` : `Your ${check.name} check`,
+        heading,
+        r,
+        label: verdict.label,
+        text: verdict.text,
+        facts,
+        ambitionStep: low,
+      })}
+      <section class="results-section" aria-labelledby="profile-heading">
+        <div class="container">
+          <h2 id="profile-heading" class="section-title">How you scored on each step</h2>
+          <p class="section-intro">This check covers ${word(FLOW_STEPS.length)} of Richard's 9 Steps: ${stepNames}. Each is scored out of 100
+            from your answers; select a step to see them.</p>
+          ${profileChart(r)}
+        </div>
+      </section>
+
+      <section class="results-section" aria-labelledby="start-heading">
+        <div class="container">
+          <h2 id="start-heading" class="section-title">Where to start</h2>
+          <p class="section-intro">Your steps in order, weakest first, with Richard's practical next moves for each.</p>
+          <div class="priority-grid">${r.low.map((s, k) => stepCard(s, ['Start here', 'Then', 'After that'][k] || 'Then')).join('')}</div>
+        </div>
+      </section>
+
+      ${
+        reading.length
+          ? `<section class="results-section" aria-labelledby="reading-heading">
+        <div class="container">
+          <h2 id="reading-heading" class="section-title">Recommended for you</h2>
+          <p class="section-intro">Picked from Business Leader for where you scored lowest.</p>
+          <div class="deeper-grid">${reading.map((item, k) => contentCard(item, `read-${check.id}-${k + 1}`)).join('')}</div>
+        </div>
+      </section>`
+          : ''
+      }
+
+      <section class="results-section" aria-label="Your next step">
+        <div class="container">${ctaPanel(check.cta)}</div>
+      </section>
+
+      <section class="results-section" aria-labelledby="full-heading">
+        <div class="container">
+          ${fullDiagnosticPanel(
+            'Take the full 9 Steps Diagnostic',
+            `This check covered ${word(FLOW_STEPS.length)} of the nine steps. The full diagnostic covers all nine in about ${C.meta.minutes} minutes, with a report across every step.`,
+            'full-heading',
+          )}
+          ${reportActions(code)}
         </div>
       </section>`
   }
@@ -730,7 +1154,7 @@
     track('nine_steps_results_view', {
       nine_steps_score: r.overall,
       nine_steps_stage: stage ? stage.name : '',
-      nine_steps_priority: r.priorities.map((s) => s.n).join(','),
+      nine_steps_priority: r.low[0] ? r.low[0].n : '',
       nine_steps_shared: state.shared,
     })
   }
@@ -744,12 +1168,16 @@
     el.hidden = !message
   }
 
+  function markMissing(form, missing) {
+    form.querySelectorAll('.question').forEach((fs) => fs.classList.toggle('is-missing', missing.includes(fs.dataset.question)))
+    if (missing.length) form.querySelector(`.question[data-question="${missing[0]}"] input`)?.focus()
+  }
+
   function onProfileSubmit(form) {
-    const missing = C.profile.filter((q) => !state.profile[q.id])
-    form.querySelectorAll('.question').forEach((fs) => fs.classList.toggle('is-missing', missing.some((q) => q.id === fs.dataset.question)))
+    const missing = C.profile.filter((q) => !state.profile[q.id]).map((q) => q.id)
+    markMissing(form, missing)
     if (missing.length) {
       showFormError(form, `Please answer ${missing.length === 1 ? 'the last question' : `all ${C.profile.length} questions`} to continue.`)
-      form.querySelector(`.question[data-question="${missing[0].id}"] input`)?.focus()
       return
     }
     track('nine_steps_profile_complete', {
@@ -757,21 +1185,40 @@
       nine_steps_turnover: state.profile.turnover,
       nine_steps_ambition: state.profile.ambition,
     })
-    go('step', 0)
+    if (isCheck()) go('details')
+    else go('step', 0)
+  }
+
+  function onStatementsSubmit(form, indices, onDone) {
+    const missing = indices.filter((idx) => state.answers[idx] === null).map(String)
+    markMissing(form, missing)
+    if (missing.length) {
+      const all = indices.length === 1 ? 'the statement' : `all ${word(indices.length)} statements`
+      showFormError(form, `Please rate ${missing.length === 1 ? 'the remaining statement' : all} to continue.`)
+      return
+    }
+    onDone()
   }
 
   function onStepSubmit(form) {
     const i = state.step
-    const missing = STEPS[i].statements.map((_, j) => OFFSETS[i] + j).filter((idx) => state.answers[idx] === null)
-    form.querySelectorAll('.question').forEach((fs) => fs.classList.toggle('is-missing', missing.includes(Number(fs.dataset.question))))
-    if (missing.length) {
-      showFormError(form, `Please rate ${missing.length === 1 ? 'the remaining statement' : 'all three statements'} to continue.`)
-      form.querySelector(`.question[data-question="${missing[0]}"] input`)?.focus()
-      return
-    }
-    track('nine_steps_step_complete', { nine_steps_step: STEPS[i].n, nine_steps_step_name: STEPS[i].name })
-    if (i < STEPS.length - 1) go('step', i + 1)
-    else go('details')
+    const step = stepByN(FLOW_STEPS[i])
+    onStatementsSubmit(form, STEP_INDICES[step.n], () => {
+      track('nine_steps_step_complete', { nine_steps_step: step.n, nine_steps_step_name: step.name })
+      if (i < FLOW_STEPS.length - 1) go('step', i + 1)
+      else go('details')
+    })
+  }
+
+  function onQuestionsSubmit(form) {
+    onStatementsSubmit(
+      form,
+      FLOW.statements.map((_, i) => i),
+      () => {
+        track('nine_steps_questions_complete')
+        go('profile')
+      },
+    )
   }
 
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -839,6 +1286,7 @@
     const add = (name, value) => {
       if (name && value !== undefined && value !== null && value !== '') fields.push({ objectTypeId: '0-1', name, value: String(value) })
     }
+    const named = (steps) => steps.map((s) => `${s.n}. ${s.name}`).join('; ')
     add(f.firstName, details.firstName)
     add(f.lastName, details.lastName)
     add(f.email, details.email)
@@ -846,17 +1294,19 @@
     add(f.jobTitle, details.jobTitle)
     add(f.phone, details.phone)
     add(f.marketingOptIn, details.marketingOptIn ? 'true' : 'false')
+    add(f.check, isCheck() ? FLOW.check.name : 'Full diagnostic')
     add(f.score, r.overall)
     if (f.stepScore) r.steps.forEach((s) => add(f.stepScore.replace('{n}', s.n), s.score))
-    add(f.priorities, r.priorities.map((s) => `${s.n}. ${s.name}`).join('; '))
-    add(f.strengths, r.strengths.map((s) => `${s.n}. ${s.name}`).join('; '))
+    add(f.priorities, named(isCheck() ? r.low.slice(0, 1) : r.priorities))
+    add(f.strengths, named(isCheck() ? r.steps.filter((s) => s.status === 'strength') : r.strengths))
     add(f.stage, C.stages[state.profile.turnover]?.name)
     add(f.role, profileOption('role', state.profile.role)?.label)
     add(f.turnover, profileOption('turnover', state.profile.turnover)?.label)
     add(f.ambition, profileOption('ambition', state.profile.ambition)?.label)
     add(f.answers, code)
     add(f.reportUrl, reportUrl(code))
-    const context = { pageUri: location.origin + location.pathname, pageName: 'The 9 Steps Diagnostic' }
+    // The query string is kept so campaign (utm_) parameters reach HubSpot with the submission.
+    const context = { pageUri: location.origin + location.pathname + location.search, pageName: document.title }
     const hutk = (document.cookie.match(/(?:^|;\s*)hubspotutk=([^;]+)/) || [])[1]
     if (hutk) context.hutk = hutk
     return { fields, context }
@@ -923,7 +1373,7 @@
     switch (el.dataset.action) {
       case 'start':
         track('nine_steps_start')
-        go('profile')
+        go(isCheck() ? 'questions' : 'profile')
         break
       case 'resume': {
         const [screen, step] = resumeTarget()
@@ -957,7 +1407,6 @@
       state.profile[input.dataset.profile] = input.value
     } else if (input.matches('input[data-statement]')) {
       state.answers[Number(input.dataset.statement)] = Number(input.value)
-      // Changing an answer after sending means the next details submit sends the new answers.
     } else {
       return
     }
@@ -970,6 +1419,7 @@
   app.addEventListener('submit', (event) => {
     event.preventDefault()
     const form = event.target
+    if (form.id === 'questions-form') onQuestionsSubmit(form)
     if (form.id === 'profile-form') onProfileSubmit(form)
     if (form.id === 'step-form') onStepSubmit(form)
     if (form.id === 'details-form') onDetailsSubmit(form)
@@ -992,14 +1442,18 @@
     if (shared) {
       openShared(shared)
       window.history.replaceState({ screen: 'results', step: 0, depth: 0 }, '', location.href)
+      track('nine_steps_shared_report_view')
       return
     }
+    useFlow(pageFlow())
+    state = fresh()
     restore(store.load())
     const { screen, step } = resolve(state.screen, state.step)
     state.screen = screen
     state.step = step
     window.history.replaceState({ screen, step, depth: 0 }, '', location.pathname + location.search)
     render()
+    track('nine_steps_view')
   }
 
   init()

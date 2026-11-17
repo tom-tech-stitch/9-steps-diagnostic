@@ -23,6 +23,7 @@ window.BL_DIAGNOSTIC_CONFIG = {
       jobTitle: 'jobtitle',
       phone: 'phone',
       marketingOptIn: 'nine_steps_marketing_opt_in',
+      check: 'nine_steps_check', // which was taken: 'Full diagnostic' or a check's name
       score: 'nine_steps_score',
       stepScore: 'nine_steps_step_{n}_score',
       priorities: 'nine_steps_priority_steps',

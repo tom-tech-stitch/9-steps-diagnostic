@@ -109,12 +109,14 @@ window.BL_DIAGNOSTIC_CONTENT = {
     },
   ],
 
-  // Per-step status, from the step total (0 to 9): 6+ is "Mostly" or better on average,
-  // 4 to 5 is between "Partly" and "Mostly", 3 or less is "Partly" or worse.
+  // Per-step status, from the share of available points the step scored. In the full diagnostic
+  // (three statements, 0 to 9) that is: 6+ Strength ("Mostly" or better on average), 4 to 5
+  // Developing, 3 or less Gap. Shares rather than totals, because a check can use 1 to 4
+  // statements from a step.
   status: {
-    strength: { label: 'Strength', key: 'Mostly or fully in place', minTotal: 6 },
-    developing: { label: 'Developing', key: 'Partly in place', minTotal: 4 },
-    gap: { label: 'Gap', key: 'Not yet in place', minTotal: 0 },
+    strength: { label: 'Strength', key: 'Mostly or fully in place', minShare: 0.66 },
+    developing: { label: 'Developing', key: 'Partly in place', minShare: 0.44 },
+    gap: { label: 'Gap', key: 'Not yet in place', minShare: 0 },
   },
 
   steps: [
@@ -138,6 +140,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       blHelps: 'Company visits, masterclasses and peer forums put you inside other growing businesses, so you can borrow what is working.',
       // Timestamped clip from the "How to Make a Billion in 9 Steps" podcast (YouTube).
       watch: { video: 'QAvF3n914ic', t: 70, guest: 'Touker Suleyman', guestRole: 'Dragons’ Den investor' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'How the world\u2019s most successful companies pivoted', url: 'https://www.businessleader.co.uk/insights/the-top-business-pivots' },
     },
     {
       n: 2,
@@ -158,6 +162,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'Peer forum challenge from CEOs who have raised capital and worked with investors.',
       watch: { video: 'QAvF3n914ic', t: 853, guest: 'Touker Suleyman', guestRole: 'Dragons\u2019 Den investor' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: Capital', url: 'https://www.businessleader.co.uk/insights/ask-richard-capital' },
     },
     {
       n: 3,
@@ -178,6 +184,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: '1:1 CEO coaching matched to your stage, and a trusted peer forum of CEOs who have been there.',
       watch: { video: 'QAvF3n914ic', t: 1507, guest: 'Touker Suleyman', guestRole: 'Dragons\u2019 Den investor' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: The power of coaching and mentoring', url: 'https://www.businessleader.co.uk/insights/ask-richard-the-power-of-coaching-and-mentoring' },
     },
     {
       n: 4,
@@ -198,6 +206,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'Masterclasses and member stories on how growing businesses find and win customers across channels.',
       watch: { video: 'CKoI47Pz32c', t: 57, guest: 'Steve Hewitt', guestRole: 'former Gymshark CEO' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: How to combine bricks, clicks and paper', url: 'https://www.businessleader.co.uk/insights/ask-richard-how-to-combine-bricks-clicks-and-paper' },
     },
     {
       n: 5,
@@ -218,6 +228,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'Peer forum members who have made that hire, and a 12-month Growth Plan that frees up your time.',
       watch: { video: 'CKoI47Pz32c', t: 1164, guest: 'Steve Hewitt', guestRole: 'former Gymshark CEO' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: When is the right time to hire my replacement?', url: 'https://www.businessleader.co.uk/insights/ask-richard-when-is-the-right-time-to-hire-my-replacement' },
     },
     {
       n: 6,
@@ -238,6 +250,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'Members who have expanded into new markets, and company visits to businesses that have done it.',
       watch: { video: 'CKoI47Pz32c', t: 2259, guest: 'Steve Hewitt', guestRole: 'former Gymshark CEO' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: International expansion', url: 'https://www.businessleader.co.uk/insights/ask-richard-international-expansion' },
     },
     {
       n: 7,
@@ -258,6 +272,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'A three-year ambition and a 12-month Growth Plan that sequence your next steps.',
       watch: { video: 'I_t0OJ-AT6U', t: 329, guest: 'Jonathan King', guestRole: 'former MD of HomeServe UK' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Swingers CEO: Use pop-ups to test your big idea', url: 'https://www.businessleader.co.uk/insights/swingers-ceo-use-pop-ups-to-test-your-big-idea' },
     },
     {
       n: 8,
@@ -278,6 +294,8 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: 'A focused 12-month Growth Plan, and peers who will hold you to it.',
       watch: { video: 'I_t0OJ-AT6U', t: 998, guest: 'Jonathan King', guestRole: 'former MD of HomeServe UK' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Why the hardest leadership skill is saying no', url: 'https://www.businessleader.co.uk/insights/how-make-billion-nine-steps' },
     },
     {
       n: 9,
@@ -298,6 +316,271 @@ window.BL_DIAGNOSTIC_CONTENT = {
       ],
       blHelps: '1:1 CEO coaching, and a trusted forum where you can be candid about the realities of the job.',
       watch: { video: 'I_t0OJ-AT6U', t: 1847, guest: 'Jonathan King', guestRole: 'former MD of HomeServe UK' },
+      // A Business Leader article on this step, linked from the step's card in the report.
+      read: { title: 'Ask Richard: Productivity playbook', url: 'https://www.businessleader.co.uk/insights/ask-richard-productivity-playbook' },
+    },
+  ],
+
+  // Short pain-point checks for first outreach: six statements from the steps that matter most for
+  // one challenge, about two minutes. Link to one with ?check=<id>, e.g. ?check=isolation.
+  // A statement either reuses one of a step's three statements ({ step, pick: 0 to 2 }) or has its own
+  // text ({ step, text }). Report links store `code` and the answers in this order, so once links are
+  // out: never change a check's code or reorder its statements; add new checks at the end.
+  checks: [
+    {
+      id: 'isolation',
+      code: 1,
+      name: 'Leading alone',
+      title: 'Is it lonely at the top?',
+      highlight: 'lonely',
+      lead:
+        'Most founders and CEOs carry decisions they can’t talk through with anyone inside the business. Six quick statements from Sir Richard Harpin’s 9 Steps show how well supported you are, and where to start.',
+      resultHeading: 'here’s how supported you are as a leader',
+      statements: [
+        { step: 3, pick: 0 },
+        { step: 3, pick: 1 },
+        { step: 9, pick: 0 },
+        { step: 9, pick: 1 },
+        { step: 5, pick: 0 },
+        { step: 5, pick: 2 },
+      ],
+      verdicts: [
+        {
+          min: 67,
+          label: 'Well supported',
+          text: 'You have people who challenge you and time to think. Keep protecting both: they get harder to hold on to as the business grows.',
+        },
+        {
+          min: 40,
+          label: 'Partly supported',
+          text: 'Some support is in place, but a lot still sits on your shoulders. A trusted room of peers and protected thinking time would lighten the load fastest.',
+        },
+        {
+          min: 0,
+          label: 'Carrying it alone',
+          text: 'You are carrying most of the weight on your own. That is common, and fixable: the right mentor and a room of peers who have been there change the job.',
+        },
+      ],
+      cta: {
+        title: 'Find a room of CEOs who get it',
+        text: 'Business Leader’s peer forums bring founders and CEOs at your stage together for trusted challenge, eight sessions a year, alongside 1:1 CEO coaching.',
+      },
+      reading: [
+        {
+          kind: 'Article',
+          step: 9,
+          title: 'The signs of executive burnout – and how to avoid it',
+          blurb: 'If you can spot the signs of burnout, you can stop it, and recover.',
+          url: 'https://www.businessleader.co.uk/insights/the-signs-of-executive-burnout-and-how-to-avoid-it',
+        },
+        {
+          kind: 'Article',
+          step: 3,
+          title: 'Want to unleash your potential? Get a mentor',
+          blurb: 'Castore co-founder and CEO Tom Beahon on the part mentoring played in his journey.',
+          url: 'https://www.businessleader.co.uk/insights/want-to-unleash-your-potential-get-a-mentor',
+        },
+        {
+          kind: 'Video',
+          step: 3,
+          title: '“I like to keep my pit crew really close to me”',
+          blurb: 'IBM UK and Ireland CEO Nicola Hodson on the people she relies on.',
+          url: 'https://www.youtube.com/watch?v=knOtN77qj7U',
+        },
+      ],
+    },
+    {
+      id: 'stuck',
+      code: 2,
+      name: 'Stuck at a plateau',
+      title: 'Has growth hit a plateau?',
+      highlight: 'plateau',
+      lead:
+        'Plenty of good businesses stall between stages: the old playbook stops working and the next one isn’t clear yet. Six quick statements from Sir Richard Harpin’s 9 Steps show what is holding you back, and where to start.',
+      resultHeading: 'here’s what’s holding your growth back',
+      statements: [
+        { step: 4, pick: 0 },
+        { step: 4, pick: 2 },
+        { step: 7, pick: 1 },
+        { step: 7, pick: 2 },
+        { step: 8, pick: 1 },
+        { step: 8, pick: 2 },
+      ],
+      verdicts: [
+        {
+          min: 67,
+          label: 'Ready for the next stage',
+          text: 'Your growth engine is in good shape: you know where customers come from, you test before you scale and you stay focused. The next gains come from doing more of it, faster.',
+        },
+        {
+          min: 40,
+          label: 'Losing momentum',
+          text: 'Parts of your growth engine are working, but gaps are slowing you down. Fixing the weakest step below will do more than adding new initiatives.',
+        },
+        {
+          min: 0,
+          label: 'Stuck',
+          text: 'Growth is being held back by the basics: knowing where customers come from, testing before you scale and saying no. These are fixable, one step at a time.',
+        },
+      ],
+      cta: {
+        title: 'Plan your way off the plateau',
+        text: 'Business Leader members set a three-year ambition and a 12-month Growth Plan, then work through it with a peer forum of CEOs who hold them to it.',
+      },
+      reading: [
+        {
+          kind: 'Article',
+          step: 5,
+          title: 'How to know when it’s time to replace yourself as the boss',
+          blurb: 'When growth plateaus, the biggest barrier is sometimes the person at the top.',
+          url: 'https://www.businessleader.co.uk/insights/how-to-know-when-its-time-to-replace-yourself-as-the-boss',
+        },
+        {
+          kind: 'Article',
+          step: 4,
+          title: 'Scaling sales overcomes the tyranny of project revenue cycles',
+          blurb: 'Ideal Response Group founder Javid Ibrahim on what it takes to reach the next stage.',
+          url: 'https://www.businessleader.co.uk/insights/growth-engines-scaling-sales-overcomes-the-tyranny-of-project-revenue-cycles',
+        },
+        {
+          kind: 'Article',
+          step: 7,
+          title: 'What it really takes to turn growth into scale',
+          blurb: 'Investor Saul Klein on why so many UK businesses struggle to scale.',
+          url: 'https://www.businessleader.co.uk/insights/saul-klein-business-leader-podcast',
+        },
+      ],
+    },
+    {
+      id: 'talent',
+      code: 3,
+      name: 'People and talent',
+      title: 'Have you got the team for the next stage?',
+      highlight: 'team',
+      lead:
+        'A business can only grow as fast as the people running it. Six quick statements from Sir Richard Harpin’s 9 Steps show how ready your team is, and where to start.',
+      resultHeading: 'here’s how ready your team is for the next stage',
+      statements: [
+        { step: 5, pick: 1 },
+        { step: 5, text: 'We can attract and keep the senior people we need for the next stage.' },
+        { step: 3, pick: 2 },
+        { step: 3, text: 'Our managers are trained to lead, not just promoted for being good at their last job.' },
+        { step: 9, pick: 2 },
+        { step: 9, pick: 0 },
+      ],
+      verdicts: [
+        {
+          min: 67,
+          label: 'Built to grow',
+          text: 'You have the people, the succession plan and the culture to grow. Keep investing in them: the next stage will need leaders you haven’t hired yet.',
+        },
+        {
+          min: 40,
+          label: 'Stretched',
+          text: 'Some of the team you need is in place, but growth still leans on you and a few key people. Succession and leadership development are where to start.',
+        },
+        {
+          min: 0,
+          label: 'Running on you',
+          text: 'Too much of the business still depends on you. Building a leadership team that can run it without you is the biggest unlock for growth.',
+        },
+      ],
+      cta: {
+        title: 'Build a team that can run it without you',
+        text: 'Business Leader members get 1:1 CEO coaching matched to their stage, and a peer forum of CEOs who have made the hires, built the teams and planned their own succession.',
+      },
+      reading: [
+        {
+          kind: 'Article',
+          step: 5,
+          title: 'How to hire for growth',
+          blurb: 'Recruiting at the right pace for sustainable growth, and how to find the sweet spot.',
+          url: 'https://www.businessleader.co.uk/insights/how-to-hire-for-growth',
+        },
+        {
+          kind: 'Article',
+          step: 5,
+          title: 'The secrets to successful CEO succession planning',
+          blurb: 'A leading headhunter’s tips on what to look for in your next chief executive.',
+          url: 'https://www.businessleader.co.uk/insights/ceo-succession-discipline',
+        },
+        {
+          kind: 'Article',
+          step: 3,
+          title: 'Ask Richard: Advisory boards, accidental managers and being a public company',
+          blurb: 'Richard on accidental managers, building an advisory board and what he looks for as an investor.',
+          url: 'https://www.businessleader.co.uk/insights/ask-richard-advisory-boards-accidental-managers-and-being-a-public-company',
+        },
+        {
+          kind: 'Article',
+          step: 9,
+          title: 'Building winning teams relies on spotting future stars',
+          blurb: 'Why harnessing top talent without compromising culture is key to scaling.',
+          url: 'https://www.businessleader.co.uk/insights/building-winning-teams-relies-on-spotting-future-stars',
+        },
+      ],
+    },
+    {
+      id: 'capital',
+      code: 4,
+      name: 'Access to capital',
+      title: 'Can you fund your next stage of growth?',
+      highlight: 'fund',
+      lead:
+        'Ambition needs fuel, and the wrong money can cost more than it brings. Six quick statements from Sir Richard Harpin’s 9 Steps show how ready you are to fund growth, and where to start.',
+      resultHeading: 'here’s how ready you are to fund the next stage',
+      statements: [
+        { step: 2, pick: 0 },
+        { step: 2, pick: 1 },
+        { step: 2, pick: 2 },
+        { step: 2, text: 'Our numbers (forecasts, margins and cash) would stand up to an investor’s or lender’s scrutiny tomorrow.' },
+        { step: 7, pick: 1 },
+        { step: 7, text: 'Each new initiative pays for itself before we fund the next one.' },
+      ],
+      verdicts: [
+        {
+          min: 67,
+          label: 'Investment-ready',
+          text: 'You know what you need, who you want and your numbers stand up. You are in a strong position to choose the right capital rather than take what is offered.',
+        },
+        {
+          min: 40,
+          label: 'Getting there',
+          text: 'The foundations are there, but gaps would show under an investor’s or lender’s scrutiny. Tighten the weakest step below before you start those conversations.',
+        },
+        {
+          min: 0,
+          label: 'Not yet ready',
+          text: 'Raising money now would be hard going. Start by proving growth that pays for itself and getting your numbers investor-ready; the right capital follows.',
+        },
+      ],
+      cta: {
+        title: 'Talk it through with CEOs who have raised',
+        text: 'Business Leader’s peer forums put you alongside founders and CEOs who have raised capital and worked with investors, for honest challenge before you take money on.',
+      },
+      reading: [
+        {
+          kind: 'Article',
+          step: 2,
+          title: 'How growth capital is powering the UK’s most ambitious businesses',
+          blurb: 'Why securing the right funding at the right time matters as much as the amount.',
+          url: 'https://www.businessleader.co.uk/insights/how-growth-capital-is-powering-the-uks-most-ambitious-businesses',
+        },
+        {
+          kind: 'Article',
+          step: 2,
+          title: 'Beyond banks: How UK entrepreneurs are rewriting the rules of fundraising',
+          blurb: 'From crowdfunding to media-for-equity: newer ways founders are funding growth.',
+          url: 'https://www.businessleader.co.uk/insights/how-uk-entrepreneurs-rewriting-rules-fundraising',
+        },
+        {
+          kind: 'Video',
+          step: 2,
+          title: 'Caspar Lee: Why Most Founders Fail After Funding',
+          blurb: 'The founder and investor on what goes wrong once the money lands.',
+          url: 'https://www.youtube.com/watch?v=A5iJRWzKr6o',
+        },
+      ],
     },
   ],
 }
