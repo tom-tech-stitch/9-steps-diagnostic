@@ -912,8 +912,8 @@
         </div>
         <div class="cta-buttons">
           <a class="btn btn-primary btn-lg" href="${esc(LINKS.bookConversation)}" ${newTab} data-cta="book-conversation">Book a conversation ${svg(icon.arrowRight)}${newTabNote}</a>
-          <a class="btn btn-secondary btn-lg" href="${esc(LINKS.roundtable)}" ${newTab} data-cta="roundtable">Join a Roundtable with Sir Richard Harpin${newTabNote}</a>
-          <p class="cta-note">Roundtables are small-group sessions where Richard shares how he scaled HomeServe and the 9 Steps in practice.</p>
+          <a class="btn btn-secondary btn-lg" href="${esc(LINKS.roundtable)}" ${newTab} data-cta="roundtable">Book a Roundtable with us${newTabNote}</a>
+          <p class="cta-note">Roundtables are small-group problem-solving sessions. Bring your biggest challenge and work through it with other founders and CEOs.</p>
         </div>
       </div>`
   }

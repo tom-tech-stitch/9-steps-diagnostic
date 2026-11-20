@@ -215,7 +215,7 @@ window.BL_DIAGNOSTIC_CONTENT = {
       name: 'Hire your replacement',
       short: 'Step back so the business can step up.',
       principle:
-        'A founder who does everything becomes the ceiling on growth. Richard hired someone to run HomeServe UK day to day after eight years, which freed him to think strategically and take the business international.',
+        'Hiring your replacement doesn’t mean stepping away. It means someone else runs the day to day, so you can focus on strategy and growth. A founder who does everything becomes the ceiling on the business. Richard hired someone to run HomeServe UK after eight years, which freed him to take HomeServe international.',
       statements: [
         'The business would run well for a month without me.',
         'I have a successor for my day-to-day role, or a clear plan to hire one.',
@@ -358,7 +358,7 @@ window.BL_DIAGNOSTIC_CONTENT = {
         {
           min: 0,
           label: 'Carrying it alone',
-          text: 'You are carrying most of the weight on your own. That is common, and fixable: the right mentor and a room of peers who have been there change the job.',
+          text: 'You are carrying most of the weight on your own. That is common, and fixable: the right coach and a room of peers who have been there change the job.',
         },
       ],
       cta: {

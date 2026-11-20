@@ -41,7 +41,7 @@ window.BL_DIAGNOSTIC_CONFIG = {
     site: 'https://www.businessleader.co.uk',
     // "Get started": the membership page's call booking route (HubSpot landing page).
     bookConversation: 'https://invites.businessleader.co.uk/get-started-web-mobile',
-    // Roundtable with Sir Richard Harpin, where he takes people through the 9 Steps.
+    // Roundtable booking: small-group problem-solving sessions for founders and CEOs.
     roundtable: 'https://invites.businessleader.co.uk/growth-workshop-web-mobile',
     newsletter: 'https://www.businessleader.co.uk/newsletters',
     privacy: 'https://www.businessleader.co.uk/our-privacy-policy',
