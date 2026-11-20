@@ -539,7 +539,7 @@
           ? `<section class="section section-tight" aria-labelledby="checks-title">
         <div class="container">
           <h2 id="checks-title" class="section-title">Short on time? Start with one challenge</h2>
-          <p class="section-intro">Four 2-minute checks on the challenges founders and CEOs raise most: six statements each,
+          <p class="section-intro">${capitalise(word(CHECKS.length))} 2-minute checks on the challenges founders and CEOs raise most: six statements each,
             a short report, and what to read and watch next.</p>
           ${checkCards()}
         </div>

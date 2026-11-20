@@ -582,5 +582,76 @@ window.BL_DIAGNOSTIC_CONTENT = {
         },
       ],
     },
+    {
+      id: 'international',
+      code: 5,
+      name: 'Going international',
+      title: 'Are you ready to go international?',
+      highlight: 'international',
+      lead:
+        'A new country can open up years of growth, or pull focus from the business that pays for it. Six quick statements from Sir Richard Harpin’s 9 Steps show how ready you are to expand abroad profitably, and where to start.',
+      resultHeading: 'here’s how ready you are to go international',
+      // From Richard's "Ask Richard: International expansion": weigh it against growth at home first, pick a
+      // market where you change little (his 15 per cent rule), and find your replacement before you go big.
+      statements: [
+        { step: 6, text: 'We have weighed going international against the growth still left in our home market.' },
+        { step: 6, text: 'We have found a market with customers like ours, where we would need to change little of what we sell.' },
+        { step: 6, pick: 1 },
+        { step: 6, text: 'We know what a new market would cost us, and how long it would take to pay back.' },
+        { step: 5, pick: 0 },
+        { step: 5, pick: 1 },
+      ],
+      verdicts: [
+        {
+          min: 67,
+          label: 'Ready to expand',
+          text: 'You have strong foundations: a business that doesn’t lean on you, and a clear view of where to go and how to make it pay. Prove the model in one country before you open the next.',
+        },
+        {
+          min: 40,
+          label: 'Getting ready',
+          text: 'Some of the groundwork is in place, but there are gaps at home or in your plan for a new market. Close them before you commit serious time and money abroad.',
+        },
+        {
+          min: 0,
+          label: 'Home first',
+          text: 'Going international now would stretch you and the business at home. Get the business running without you first, then pick a market where your model works with little change.',
+        },
+      ],
+      cta: {
+        title: 'Go global with people who have done it',
+        text: 'Business Leader’s peer forums put you alongside founders and CEOs who have taken their businesses into new markets, for honest challenge before you commit time and money abroad.',
+      },
+      reading: [
+        {
+          kind: 'Article',
+          step: 6,
+          title: 'International expansion: How to take your business into new markets',
+          blurb: 'Founders and advisers on when to go, where to start and how to judge success.',
+          url: 'https://www.businessleader.co.uk/insights/international-expansion-how-to-take-your-business-into-new-markets',
+        },
+        {
+          kind: 'Video',
+          step: 6,
+          title: 'Expanding Rentokil to 88 countries',
+          blurb: 'Richard Harpin talks to Andy Ransom, outgoing CEO of Rentokil Initial, about building the business worldwide.',
+          url: 'https://www.youtube.com/watch?v=0dcpypa5irM&t=1383s',
+        },
+        {
+          kind: 'Article',
+          step: 6,
+          title: 'Why local talent is the secret to global business success',
+          blurb: 'Why local expertise, rather than remote teams or staff sent from home, can decide whether expansion works.',
+          url: 'https://www.businessleader.co.uk/insights/why-local-talent-is-the-secret-to-global-business-success',
+        },
+        {
+          kind: 'Article',
+          step: 5,
+          title: 'How to know when it’s time to replace yourself as the boss',
+          blurb: 'Richard’s advice is to find your replacement before you go big abroad. Here’s how to know when it’s time.',
+          url: 'https://www.businessleader.co.uk/insights/how-to-know-when-its-time-to-replace-yourself-as-the-boss',
+        },
+      ],
+    },
   ],
 }

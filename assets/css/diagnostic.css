@@ -1637,13 +1637,30 @@ fieldset {
   .check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* An odd card out spans the row rather than sitting alone. */
+  .check-grid > li:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }
 @media (min-width: 64rem) {
   .check-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+  .check-grid > li:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
   .check-grid:has(> li:nth-child(3):last-child) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* Five cards: three on the first row, two wider ones on the second. */
+  .check-grid:has(> li:nth-child(5):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .check-grid:has(> li:nth-child(5):last-child) > li {
+    grid-column: span 2;
+  }
+  .check-grid:has(> li:nth-child(5):last-child) > li:nth-child(n + 4) {
+    grid-column: span 3;
   }
 }
 .check-card {

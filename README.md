@@ -5,7 +5,7 @@ A self-assessment for founders and CEOs, built for Business Leader, in two lengt
 - **The full diagnostic** (about 6 minutes, 27 statements): rates the business against all of Sir Richard
   Harpin's 9 Steps to a Billion and gives a report with a score out of 100, a profile across the nine
   steps, three priority steps with practical next moves, strengths and a suggested next step.
-- **Four 2-minute checks** (6 statements each) for first outreach, each on one challenge and the steps
+- **Five 2-minute checks** (6 statements each) for first outreach, each on one challenge and the steps
   behind it. The report shows where to start, Richard's next moves, and Business Leader articles and
   videos picked for the weakest step.
 
@@ -18,6 +18,7 @@ A self-assessment for founders and CEOs, built for Business Leader, in two lengt
 | Has growth hit a plateau? (scaling, stuck) | https://tom-tech-stitch.github.io/9-steps-diagnostic/?check=stuck |
 | Have you got the team for the next stage? (people and talent) | https://tom-tech-stitch.github.io/9-steps-diagnostic/?check=talent |
 | Can you fund your next stage of growth? (access to capital) | https://tom-tech-stitch.github.io/9-steps-diagnostic/?check=capital |
+| Are you ready to go international? (international expansion) | https://tom-tech-stitch.github.io/9-steps-diagnostic/?check=international |
 
 Campaign parameters can be added to any of these (for example `&utm_source=linkedin`); they are passed to
 HubSpot with the submission.
@@ -73,6 +74,7 @@ statements (`{ step: 3, pick: 0 }`) or has its own wording (`{ step: 5, text: 'â
 | Stuck at a plateau (`stuck`) | 4 Bricks, clicks and paper, 7 Evolution not revolution, 8 Follow a not-to-do list |
 | People and talent (`talent`) | 3 Get some coachment, 5 Hire your replacement, 9 Hone your character |
 | Access to capital (`capital`) | 2 Get an investor, 7 Evolution not revolution |
+| Going international (`international`) | 5 Hire your replacement, 6 Go global with locals |
 
 Report links store each check's `code` and its answers in order, so once links are out, never change a
 check's code or reorder its statements. Add new checks at the end with the next code (1 to 9).
